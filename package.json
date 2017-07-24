@@ -1,0 +1,53 @@
+{
+  "name": "tcp-tunnel",
+  "version": "0.0.1",
+  "description": "node.js tcp tunnel",
+  "keywords": [
+    "realtime",
+    "framework",
+    "ws",
+    "tcp",
+    "socket"
+  ],
+  "main": "./mix-server.js",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/huge818/tcp-tunnel.git"
+  },
+  "scripts": {
+  },
+  "dependencies": {
+    "ws": "*",
+  },
+  "devDependencies": {
+  },
+  "contributors": [
+    {
+      "name": "huzhongchuan",
+      "email": "huzc818@qq.com"
+    },
+  ],
+  "bugs": {
+    "url": "https://github.com/huge818/tcp-tunnel/issues"
+  },
+  "homepage": "https://github.com/huge818/tcp-tunnel#readme",
+  "_id": "tcp-tunnel@0.0.1",
+  "_npmUser": {
+    "name": "huzc818@qq.com",
+    "email": "huzc818@qq.com"
+  },
+  "dist": {
+
+  },
+  "maintainers": [
+    {
+      "name": "huzc818",
+      "email": "huzc818@qq.com"
+    }
+  ],
+  "_npmOperationalInternal": {
+
+  },
+  "directories": {},"
+}
