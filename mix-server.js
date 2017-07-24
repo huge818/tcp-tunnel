@@ -4,6 +4,7 @@ var toolkit=require('./common');
 toolkit.socketList={
 };
 
+//考虑使用纯粹tcpserver
 var ws = require('ws');
 var wss = new ws.Server({port:9099});
 wss.on('connection', function(ws) {
