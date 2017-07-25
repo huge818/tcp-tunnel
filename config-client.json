@@ -1,0 +1,12 @@
+{
+	"tunnelhost":"172.16.41.1",
+	"tunnelport":1088,
+	"type":"fixed", 
+	"userinfo":{
+		"username":"user1",
+		"password":"123456"
+	},
+	"localport": [5080,5081,5022],
+	"remoteproxy":[
+	]
+}

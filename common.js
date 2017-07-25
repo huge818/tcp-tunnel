@@ -1,4 +1,5 @@
 var net=require('net');
+var fs=require('fs');
 var toolkit={};
 /**
  * [readMixBuffer 解析混合数据流]
@@ -6,20 +7,20 @@ var toolkit={};
  * @return {[object]}     [解析之后的数据格式object]
  */
 toolkit.readMixBuffer=function(buf){
-	var mix=buf.slice(0,16);
-	var mixbuf = new Buffer("_mix_ture_blend_");
+	var mix=buf.slice(0,3);
+	var mixbuf = new Buffer("mix");
 	if(!mix.equals(mixbuf)){
 		return {mix:false};
 	}
 	var L=buf.length;
-	var port=buf.slice(16,18).readUInt16BE(0);
-	var id=buf.slice(18,26).toString();
-	var data=buf.slice(26);
-	var portstr=port+"";
-	if(typeof(port)!=="number"){
+	var index=buf.slice(3,5).readUInt16BE(0);
+	var id=buf.slice(5,13).toString();
+	var data=buf.slice(13);
+	var portstr=index+"";
+	if(typeof(index)!=="number"){
 		return {mix:false};
 	}
-	if(port>65535){
+	if(index>65535){
 		return {mix:false};
 	}
 	if(!id.match(/\d{8}/g)){
@@ -27,7 +28,7 @@ toolkit.readMixBuffer=function(buf){
 	}
 	return {
 		mix:true,
-		port:port,
+		index:index,
 		id:id,
 		data:data
 	};
@@ -40,27 +41,27 @@ toolkit.readMixBuffer=function(buf){
  * @return {[buffer]}        [result buffer]
  */
 toolkit.removeBuffer=function(buf,subuff){
-	var index=buf.indexOf(subuff);
+	var pos=buf.indexOf(subuff);
 	var L=subuff.length;
-	var A=buf.slice(0,index);
-	var B=buf.slice(index+L);
+	var A=buf.slice(0,pos);
+	var B=buf.slice(pos+L);
 	var data= Buffer.concat([A,B]);
 	return data;
 }
 
 /**
  * [writeMixBuffer 组装混合流的数据包]
- * @param  {[number]} port [混合流之前数据的端口]
+ * @param  {[number]} index [混合流之前数据的端口]
  * @param  {[string]} id   [唯一标识符]
  * @param  {[buffer]} buf  [混合之前的buffer数据]
  * @return {[buffer]}      [混合之后的buffer]
  */
-toolkit.writeMixBuffer=function(port,id,buf){
-	var mix= new Buffer("_mix_ture_blend_");
-	var bufport= new Buffer(2);
-	bufport.writeUInt16BE(port,0);
+toolkit.writeMixBuffer=function(index, id, buf){
+	var mix= new Buffer("mix");
+	var bufindex= new Buffer(2);
+	bufindex.writeUInt16BE(index,0);
 	var bufid = new Buffer(id);
-	var data= Buffer.concat([mix,bufport,bufid,buf]);
+	var data= Buffer.concat([mix,bufindex,bufid,buf]);
 	return data;
 }
 
@@ -76,26 +77,22 @@ toolkit.checkreadBuffer=function(data,log){
 	if(!mixObj.mix){
 		return false;
 	}
-	if(mixObj.port!==82){
-		console.log("数据异常!port");
+	if(typeof(mixObj.index)!=="number"){
+		console.log("数据异常!index");
 		return false;
 	}
 	if(mixObj.id.length!==8){
 		console.log("数据异常!id");
 		return false;
 	}
-
-	if(mixObj.data.length!==data.length-26){
+	if(mixObj.data.length!==data.length-13){
 		console.log("数据异常!data");
 		console.log(mixObj.data.length,data.length);
 		console.log("id="+mixObj.id+"\n");
-		console.log("port="+mixObj.port+"\n");
+		console.log("index="+mixObj.index+"\n");
 		console.log("data=",data);
 		return false;
 	}
-	//console.log(mixObj.data.length,data.length);
-	//console.log("id="+mixObj.id+"\n");
-	//console.log("port="+mixObj.port+"\n");
 	return true;
 }
 
@@ -125,14 +122,15 @@ toolkit.uuid=function(){
  * @param  {[socket]}   mixClient [混合数据流句柄]
  * @param  {Function}   callback  [回调]
  */
-toolkit.clientServer=function(port,ws,callback){
+toolkit.clientServer=function(index, config, ws){
 	var self=this;
+	var port=config.localport[index];
 	var tcpServer = net.createServer(function(socket){
 		var id=toolkit.uuid();
-		self.socketList[id]=socket;
+		self.socketList[index+""][id]=socket;
 		//收到浏览器或其他客户端发来的数据
 		socket.on("data",function(data){
-			var buf=toolkit.writeMixBuffer(port,id,data);
+			var buf=toolkit.writeMixBuffer(index,id,data);
 			toolkit.checkreadBuffer(buf,"client server "+port);
 			var mixObj = toolkit.readMixBuffer(buf);
 			if(!mixObj.mix){
@@ -149,13 +147,12 @@ toolkit.clientServer=function(port,ws,callback){
 		var fn=function(error){
 			console.log(error);	
 			setTimeout(function(){
-				delete self.socketList[id];
+				delete self.socketList[index+""][id];
 			},1000);
 		}
 		socket.on("end",fn);
 		socket.on("error",fn);
 		socket.on("close",fn);
-		callback&&callback(socket);
 	});
 
 	tcpServer.on('error', function(err){
@@ -172,21 +169,24 @@ toolkit.clientServer=function(port,ws,callback){
  * singleclient发送给mixserver的是加头之后的混合流
  * ]
  * @param  {[string]}   id        [socket唯一标识符]
- * @param  {[number]}   port      [服务器端监听端口]
+ * @param  {[number]}   index     [序号]
  * @param  {[socket]}   mixSocket [服务器端主服务器socket句柄]
  * @param  {Function}   fn        [连接成功回调]
  * @return {[object]}             [client连接句柄]
  */
-toolkit.clientConnect=function(id,address,ws,fn){
-	var port=address.port;
+toolkit.clientConnect=function(id,index,address,ws,fn){
 	var singleClient = net.createConnection(address, function(){
 		console.log("connect ok");
-		toolkit.socketList[id]=singleClient;
+		console.log();
+		if(!toolkit.socketList[index+""]){
+			toolkit.socketList[index+""]={};
+		}
+		toolkit.socketList[index+""][id]=singleClient;
 		fn&&fn(singleClient);
 	});
 
 	singleClient.on('data', function(buf){
-		var data=toolkit.writeMixBuffer(port,id,buf);
+		var data=toolkit.writeMixBuffer(index,id,buf);
 		toolkit.checkreadBuffer(data,"singleClient发送给mixServer");
 		ws.send(data);
 	});
@@ -194,7 +194,7 @@ toolkit.clientConnect=function(id,address,ws,fn){
 	singleClient.on('end', function(){
 		console.log("end");
 		setTimeout(function(){
-			delete toolkit.socketList[id];
+			delete toolkit.socketList[index+""][id];
 		},1000);
 	});
 
@@ -203,6 +203,30 @@ toolkit.clientConnect=function(id,address,ws,fn){
 	});
 
 	return singleClient;
+}
+
+/**
+ * [readConfig 读取配置]
+ * @param  {[type]}   path [配置文件路径]
+ * @param  {Function} fn   [回调]
+ */
+toolkit.readConfig=function(path,fn){
+	var flag=fs.existsSync(path);
+	if(!flag){
+		fn&&fn("file not exist");
+		return;
+	}
+	var data=fs.readFileSync(path,"utf-8");
+	try{
+		var config=JSON.parse(data);
+	} 
+	catch(e){
+		fn&&fn("JSON.parse error");
+		console.log("JSON.parse error");
+		return;
+	}
+	fn&&fn(null,config);
+	return config;
 }
 
 toolkit.socketList={};
