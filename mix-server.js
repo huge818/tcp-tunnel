@@ -1,12 +1,15 @@
 var net=require('net');
 var toolkit=require('./common');
-
-toolkit.socketList={
-};
-
-//考虑使用纯粹tcpserver
 var ws = require('ws');
-var wss = new ws.Server({port:9099});
+
+var config=toolkit.readConfig("./config-server.json");
+if(!config){
+	process.exit();
+}
+
+toolkit.socketList={};
+
+var wss = new ws.Server({port:config.tunnelport});
 wss.on('connection', function(ws) {
 	ws.on('message', function(data) {
 		var mixObj = toolkit.readMixBuffer(data);
@@ -16,23 +19,26 @@ wss.on('connection', function(ws) {
 			return;
 		}
 		var id=mixObj.id;
-		var port=mixObj.port;
+		var index=mixObj.index;
 		var buf=mixObj.data;
-		var socketHandle=toolkit.socketList[id];
-		if(socketHandle){
-			socketHandle.write(buf);
+		if(id==="00000000"&&index===65535){
+			var str=mixObj.data.toString();
+			var proxy=JSON.parse(str);
+			config.proxy=proxy;
+			return;
+		}
+		var socketGroup=toolkit.socketList[index+""];
+		if(socketGroup&&socketGroup[id]){
+			socketGroup[id].write(buf);
 		}
 		else{
 			var fn=function(singleClient){
 				singleClient.write(buf);
 			};
-			var address={
-				host:"172.16.41.1",
-				port:port
-			};
-			toolkit.clientConnect(id,address,ws,fn);
+			var address=config.proxy[index];
+			toolkit.clientConnect(id,index,address,ws,fn);
 		}
 	});
 });
 
-
+console.log("server id running");
