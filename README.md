@@ -86,3 +86,5 @@ config-server.json
 	]
 }
 ```
+
+测试发现走ssh协议有bug，http协议无问题，在解决中，欢迎交流 huzc818@qq.com
